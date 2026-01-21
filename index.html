@@ -34,8 +34,7 @@
   select, input[type="number"], input[type="text"] { width:100%; padding:0.4rem; border-radius:6px; border:1px solid var(--kai-grey); }
   .muted { color:#6b7a77; font-size:0.85rem; }
   .actions { margin-top:1.25rem; display:flex; justify-content:flex-end; gap:0.5rem; }
-  /* Modal styles */
-  .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); justify-content:center; align-items:center; }
+  .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); justify-content:center; align-items:center; z-index:100; }
   .modal-content { background:white; padding:1.5rem; border-radius:12px; max-width:400px; width:90%; }
   .modal-content h3 { margin-top:0; }
   .modal-content label { display:block; margin-top:0.75rem; font-weight:500; }
@@ -87,26 +86,28 @@
 </div>
 
 <!-- Modal for adding a site -->
-<div id="addSitePopup" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:1.5rem; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,0.1); z-index:100;">
-  <h3>Add a Site</h3>
-  <label>
-    Name
-    <input type="text" id="newSiteName">
-  </label>
-  <label>
-    Address
-    <input type="text" id="newSiteAddress">
-  </label>
-  <label>
-    Pickup Type
-    <select id="newSiteType">
-      <option value="Scheduled">Scheduled</option>
-      <option value="On-Call">On-Call</option>
-    </select>
-  </label>
-  <div style="margin-top:1rem; display:flex; justify-content:flex-end; gap:0.5rem;">
-    <button id="addSiteCancel">Cancel</button>
-    <button id="addSiteSubmit">Add Site</button>
+<div id="addSitePopup" class="modal">
+  <div class="modal-content">
+    <h3>Add a Site</h3>
+    <label>
+      Name
+      <input type="text" id="newSiteName">
+    </label>
+    <label>
+      Address
+      <input type="text" id="newSiteAddress">
+    </label>
+    <label>
+      Pickup Type
+      <select id="newSiteType">
+        <option value="Scheduled">Scheduled</option>
+        <option value="On-Call">On-Call</option>
+      </select>
+    </label>
+    <div style="margin-top:1rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+      <button id="addSiteCancel">Cancel</button>
+      <button id="addSiteSubmit">Add Site</button>
+    </div>
   </div>
 </div>
 
@@ -124,26 +125,25 @@
 <script>
 let API_URL = "";
 
+// DOM
 const loadBtn = document.getElementById("loadBtn");
 const submitBtn = document.getElementById("submitBtn");
 const addSiteBtn = document.getElementById("addSiteBtn");
 const tableBody = document.getElementById("tableBody");
 
-const modal = document.getElementById("modal");
-const manualName = document.getElementById("manualName");
-const manualAddress = document.getElementById("manualAddress");
-const manualFrequency = document.getElementById("manualFrequency");
-const manualType = document.getElementById("manualType");
-const saveManual = document.getElementById("saveManual");
-const cancelManual = document.getElementById("cancelManual");
+// Modal inputs
+const modal = document.getElementById("addSitePopup");
+const manualName = document.getElementById("newSiteName");
+const manualAddress = document.getElementById("newSiteAddress");
+const manualType = document.getElementById("newSiteType");
+const saveManual = document.getElementById("addSiteSubmit");
+const cancelManual = document.getElementById("addSiteCancel");
 
+// Initialization
 const initOverlay = document.getElementById("initOverlay");
 const scriptUrlInput = document.getElementById("scriptUrl");
 const initBtn = document.getElementById("initBtn");
 
-// ============================
-// Initialization
-// ============================
 initBtn.addEventListener("click", () => {
   const url = scriptUrlInput.value.trim();
   if(!url) return alert("Please paste the script URL.");
@@ -171,7 +171,6 @@ loadBtn.addEventListener("click", async () => {
 
     renderRows(data);
     submitBtn.disabled = false;
-
   } catch (err) {
     tableBody.innerHTML = `<tr><td colspan="6">Error loading data</td></tr>`;
     console.error(err);
@@ -183,17 +182,18 @@ loadBtn.addEventListener("click", async () => {
 // ============================
 // Render Rows
 // ============================
-function renderRows(sites) {
+function renderRows(sites, newSite){
+  const existing = [...sites];
+  if(newSite) existing.push({...newSite, siteId: newSite.siteName});
   tableBody.innerHTML = "";
 
-  sites.forEach(site => {
+  existing.forEach(site => {
     const tr = document.createElement("tr");
     tr.dataset.siteId = site.siteId || site.siteName;
-
     tr.innerHTML = `
       <td>${site.siteName}</td>
-      <td>${site.address}</td>
-      <td>${site.frequency}</td>
+      <td>${site.address || ""}</td>
+      <td>${site.frequency || ""}</td>
       <td>
         <select>
           <option value="">Select</option>
@@ -204,7 +204,6 @@ function renderRows(sites) {
       <td><input type="number" min="0" step="1"></td>
       <td><input type="number" min="0" step="0.1"></td>
     `;
-
     tableBody.appendChild(tr);
   });
 }
@@ -248,7 +247,6 @@ submitBtn.addEventListener("click", async () => {
 addSiteBtn.addEventListener("click", () => {
   manualName.value = "";
   manualAddress.value = "";
-  manualFrequency.value = "Weekly";
   manualType.value = "Scheduled";
   modal.style.display = "flex";
 });
@@ -257,10 +255,10 @@ cancelManual.addEventListener("click", () => modal.style.display = "none");
 
 saveManual.addEventListener("click", async () => {
   const site = {
-    siteName: document.getElementById("newSiteName").value,
-    address: document.getElementById("newSiteAddress").value,
-    pickupType: document.getElementById("newSiteType").value,
-    date: new Date() // optional, can default to today
+    siteName: manualName.value.trim(),
+    address: manualAddress.value.trim(),
+    pickupType: manualType.value,
+    date: new Date()
   };
 
   if(!site.siteName) return alert("Site name is required.");
@@ -274,12 +272,14 @@ saveManual.addEventListener("click", async () => {
     const data = await res.json();
     if(data.success){
       modal.style.display = "none";
-      renderRows([...document.querySelectorAll("tr")].map(tr => ({
+      // append new site to table
+      const existingRows = [...tableBody.querySelectorAll("tr")].map(tr => ({
         siteId: tr.dataset.siteId,
         siteName: tr.children[0].textContent,
         address: tr.children[1].textContent,
         frequency: tr.children[2].textContent
-      })), site); // add new site
+      }));
+      renderRows(existingRows, site);
       alert("Site added to this week's schedule.");
     }
   } catch(err){
@@ -287,32 +287,6 @@ saveManual.addEventListener("click", async () => {
     alert("Failed to add site.");
   }
 });
-
-// Helper: append new manual site row after render
-function renderRows(existingSites, newSite){
-  const sites = [...existingSites];
-  if(newSite) sites.push({...newSite, siteId:newSite.siteName});
-  tableBody.innerHTML = "";
-  sites.forEach(site => {
-    const tr = document.createElement("tr");
-    tr.dataset.siteId = site.siteId;
-    tr.innerHTML = `
-      <td>${site.siteName}</td>
-      <td>${site.address || ""}</td>
-      <td>${site.frequency || ""}</td>
-      <td>
-        <select>
-          <option value="">Select</option>
-          <option value="Farro cage">Farro cage</option>
-          <option value="Wheelie bin">Wheelie bin</option>
-        </select>
-      </td>
-      <td><input type="number" min="0" step="1"></td>
-      <td><input type="number" min="0" step="0.1"></td>
-    `;
-    tableBody.appendChild(tr);
-  });
-}
 </script>
 
 </body>
