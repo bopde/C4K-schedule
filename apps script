@@ -2,7 +2,8 @@
  * CONFIG
  ***************************************/
 
-const SPREADSHEET_ID = "1GHa0GkDW2CeNFYqgIbbtguQwSWLotlm4M3YLNoBvZto";
+// Get Spreadsheet ID from script properties
+const SHEET_ID = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
 
 const SHEET_SITES = "Sites";
 const SHEET_LOG = "Pickup Log";
@@ -17,7 +18,6 @@ function doGet(e) {
     if (e.parameter.action === "getWeeklySchedule") {
       return jsonResponse(getWeeklySchedule());
     }
-
     return jsonResponse({ error: "Unknown action" });
   } catch (err) {
     return jsonResponse({ error: err.message });
@@ -31,7 +31,11 @@ function doPost(e) {
       submitPickupData(payload);
       return jsonResponse({ success: true });
     }
-
+    if (e.parameter.action === "addOnCallSite") {
+      const payload = JSON.parse(e.postData.contents);
+      addOnCallSite(payload);
+      return jsonResponse({ success: true });
+    }
     return jsonResponse({ error: "Unknown action" });
   } catch (err) {
     return jsonResponse({ error: err.message });
@@ -43,7 +47,7 @@ function doPost(e) {
  ***************************************/
 
 function getWeeklySchedule() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(SHEET_ID);
   const sitesSheet = ss.getSheetByName(SHEET_SITES);
   const logSheet = ss.getSheetByName(SHEET_LOG);
 
@@ -57,68 +61,98 @@ function getWeeklySchedule() {
   const schedule = [];
 
   sites.forEach(site => {
-    // Robust Active check
-    if (!site.Active || site.Active.toString().toLowerCase() !== "true") return;
+    const active = site.Active?.toString().toLowerCase() === "true";
+    const frequency = site["Pickup frequency"]?.toString().trim();
+    const pickupType = site["Pickup Type"]?.toString().trim() || "Scheduled";
 
-    // Get logs for this site
+    if (!active) return;
+
+    // Get last pickup from logs
     const siteLogs = logs
       .filter(l => l["Site ID"] == site["Site ID"])
       .sort((a, b) => new Date(b["Pickup date"]) - new Date(a["Pickup date"]));
 
-    let lastPickup = null;
-    if (siteLogs.length > 0) {
-      const d = new Date(siteLogs[0]["Pickup date"]);
-      if (!isNaN(d)) lastPickup = d;
-    }
+    const lastPickup = siteLogs.length ? new Date(siteLogs[0]["Pickup date"]) : null;
 
-    // Calculate next due
+    // Determine next due
     let nextDue;
-    try {
-      if (lastPickup) {
-        nextDue = calculateNextDue(lastPickup, site["Pickup frequency"]);
-      } else {
-        // If never picked up, schedule first pickup today
-        nextDue = today;
-      }
-    } catch (e) {
-      Logger.log("Error calculating nextDue for site " + site["Site name"], e);
-      return;
+    if (pickupType === "On-call") {
+      nextDue = startOfWeek(today); // always show on-call this week
+    } else {
+      nextDue = lastPickup ? calculateNextDue(lastPickup, frequency) : startOfWeek(today);
     }
 
-    // Include site if due this week
+    // Include if in this week
     if (nextDue >= weekStart && nextDue <= weekEnd) {
       schedule.push({
         siteId: site["Site ID"],
-        siteName: site["Site name"] || "",
+        siteName: site["Site name"],
         address: site["Address"] || "",
-        frequency: site["Pickup frequency"] || ""
+        frequency: frequency || "On-call",
+        lastPickupDate: lastPickup,
+        autoNextDue: nextDue,
+        pickupType
       });
     }
   });
 
-  Logger.log("Weekly Schedule:", schedule);
   return schedule;
 }
 
-
 function submitPickupData(rows) {
-  const sheet = SpreadsheetApp
-    .openById(SPREADSHEET_ID)
-    .getSheetByName(SHEET_LOG);
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const logSheet = ss.getSheetByName(SHEET_LOG);
+  const scheduleSheet = ss.getSheetByName(SHEET_SCHEDULE);
 
-  rows.forEach(row => {
+  rows.forEach((row, index) => {
     if (!row.receptacle) return;
 
-    sheet.appendRow([
-      new Date(),
-      new Date(),
+    const timestamp = new Date();
+    logSheet.appendRow([
+      timestamp,              // Timestamp
       row.siteId || "",
       row.siteName,
       row.receptacle,
       Number(row.numberOfBins || 0),
       Number(row.fillQuantity || 0)
     ]);
+
+    // Update Computed Schedule for audit/history
+    scheduleSheet.appendRow([
+      startOfWeek(new Date()), // Week Start
+      row.siteName,
+      row.address || "",
+      row.frequency,
+      row.lastPickupDate || "",
+      row.autoNextDue || "",
+      true,                   // Include (manual)
+      index + 1,              // Route Order (temporary, can edit)
+      "",                     // Notes
+      row.pickupType || "Scheduled"
+    ]);
   });
+}
+
+/**
+ * Add an ad-hoc / on-call site for this week
+ */
+function addOnCallSite(site) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const scheduleSheet = ss.getSheetByName(SHEET_SCHEDULE);
+
+  const timestamp = new Date();
+  scheduleSheet.appendRow([
+    startOfWeek(new Date()), // Week Start
+    site.siteName || "",
+    site.address || "",
+    site.frequency || "On-Call",
+    site.lastPickupDate || "",
+    site.autoNextDue || new Date(),
+    true,                    // Include
+    "",                      // Route Order (manual)
+    site.notes || "",
+    site.pickupType || "On-Call"
+  ]);
 }
 
 /***************************************
@@ -129,15 +163,9 @@ function calculateNextDue(date, frequency) {
   const d = new Date(date);
 
   switch (frequency) {
-    case "Weekly":
-      d.setDate(d.getDate() + 7);
-      break;
-    case "Fortnightly":
-      d.setDate(d.getDate() + 14);
-      break;
-    case "Monthly":
-      d.setMonth(d.getMonth() + 1);
-      break;
+    case "Weekly": d.setDate(d.getDate() + 7); break;
+    case "Fortnightly": d.setDate(d.getDate() + 14); break;
+    case "Monthly": d.setMonth(d.getMonth() + 1); break;
   }
 
   return d;
