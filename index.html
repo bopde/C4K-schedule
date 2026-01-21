@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kai Ika – Can Pickup Schedule</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --kai-green: #1f7a63;
+      --kai-green-dark: #155e4b;
+      --kai-sand: #f4f7f6;
+      --kai-grey: #e3e8e6;
+      --kai-text: #1e2d2a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, sans-serif;
+      background: var(--kai-sand);
+      color: var(--kai-text);
+    }
+
+    header {
+      background: white;
+      border-bottom: 1px solid var(--kai-grey);
+      padding: 1.25rem 1.5rem;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--kai-green);
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.04);
+      margin-bottom: 1.5rem;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .card-header h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    button {
+      background: var(--kai-green);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: var(--kai-green-dark);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    thead {
+      background: var(--kai-grey);
+    }
+
+    th, td {
+      padding: 0.65rem 0.75rem;
+      text-align: left;
+      font-size: 0.85rem;
+      vertical-align: top;
+    }
+
+    th {
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--kai-grey);
+    }
+
+    select,
+    input[type="number"] {
+      width: 100%;
+      padding: 0.4rem 0.45rem;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      border: 1px solid var(--kai-grey);
+      background: white;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 1.25rem;
+    }
+
+    .muted {
+      color: #6b7a77;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>Kai Ika – Weekly Can Pickup</h1>
+</header>
+
+<main>
+
+  <!-- Schedule Card -->
+  <div class="card">
+    <div class="card-header">
+      <h2>This Week’s Pickup Schedule</h2>
+      <button id="loadScheduleBtn">Load This Week</button>
+    </div>
+
+    <p class="muted">
+      Schedule is automatically calculated based on today’s date and last collection.
+    </p>
+
+    <div style="overflow-x:auto;">
+      <table id="scheduleTable">
+        <thead>
+          <tr>
+            <th>Site</th>
+            <th>Address</th>
+            <th>Frequency</th>
+            <th>Receptacle</th>
+            <th>Bins</th>
+            <th>Fill Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Rows injected by JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="actions">
+      <button id="submitBtn">Submit Pickup Data</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // ===============================
+  // CONFIG
+  // ===============================
+
+  // This will be your Apps Script Web App URL
+  const API_URL = "PASTE_APPS_SCRIPT_URL_HERE";
+
+  // ===============================
+  // DOM ELEMENTS
+  // ===============================
+
+  const loadBtn = document.getElementById("loadScheduleBtn");
+  const submitBtn = document.getElementById("submitBtn");
+  const tableBody = document.querySelector("#scheduleTable tbody");
+
+  // ===============================
+  // LOAD WEEKLY SCHEDULE
+  // ===============================
+
+  loadBtn.addEventListener("click", async () => {
+    tableBody.innerHTML = "";
+
+    // Placeholder data until backend exists
+    const mockData = [
+      {
+        siteName: "Cafe Example",
+        address: "123 Ocean View Rd",
+        frequency: "Weekly"
+      },
+      {
+        siteName: "Market Example",
+        address: "45 Wharf Street",
+        frequency: "Fortnightly"
+      }
+    ];
+
+    renderTable(mockData);
+
+    // Real version (later):
+    // const res = await fetch(`${API_URL}?action=getWeeklySchedule`);
+    // const data = await res.json();
+    // renderTable(data);
+  });
+
+  // ===============================
+  // RENDER TABLE
+  // ===============================
+
+  function renderTable(sites) {
+    sites.forEach((site, index) => {
+      const row = document.createElement("tr");
+
+      row.innerHTML = `
+        <td>${site.siteName}</td>
+        <td>${site.address}</td>
+        <td>${site.frequency}</td>
+        <td>
+          <select>
+            <option value="">Select</option>
+            <option value="Farro cage">Farro cage</option>
+            <option value="Wheelie bin">Wheelie bin</option>
+          </select>
+        </td>
+        <td>
+          <input type="number" min="0" step="1" />
+        </td>
+        <td>
+          <input type="number" min="0" step="0.1" />
+        </td>
+      `;
+
+      tableBody.appendChild(row);
+    });
+  }
+
+  // ===============================
+  // SUBMIT PICKUP DATA
+  // ===============================
+
+  submitBtn.addEventListener("click", () => {
+    const rows = [...tableBody.querySelectorAll("tr")];
+
+    const payload = rows.map(row => {
+      const cells = row.children;
+      return {
+        siteName: cells[0].textContent,
+        address: cells[1].textContent,
+        frequency: cells[2].textContent,
+        receptacle: cells[3].querySelector("select").value,
+        numberOfBins: cells[4].querySelector("input").value,
+        fillQuantity: cells[5].querySelector("input").value
+      };
+    });
+
+    console.log("Payload to send:", payload);
+
+    // Real version (later):
+    // fetch(`${API_URL}?action=submitPickupData`, {
+    //   method: "POST",
+    //   body: JSON.stringify(payload)
+    // });
+
+    alert("Pickup data prepared. Check console.");
+  });
+
+</script>
+
+</body>
+</html>
