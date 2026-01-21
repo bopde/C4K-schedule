@@ -1,0 +1,176 @@
+/***************************************
+ * CONFIG
+ ***************************************/
+
+const SPREADSHEET_ID = "1GHa0GkDW2CeNFYqgIbbtguQwSWLotlm4M3YLNoBvZto";
+
+const SHEET_SITES = "Sites";
+const SHEET_LOG = "Pickup Log";
+const SHEET_SCHEDULE = "Computed Schedule";
+
+/***************************************
+ * ENTRY POINTS
+ ***************************************/
+
+function doGet(e) {
+  try {
+    if (e.parameter.action === "getWeeklySchedule") {
+      return jsonResponse(getWeeklySchedule());
+    }
+
+    return jsonResponse({ error: "Unknown action" });
+  } catch (err) {
+    return jsonResponse({ error: err.message });
+  }
+}
+
+function doPost(e) {
+  try {
+    if (e.parameter.action === "submitPickupData") {
+      const payload = JSON.parse(e.postData.contents);
+      submitPickupData(payload);
+      return jsonResponse({ success: true });
+    }
+
+    return jsonResponse({ error: "Unknown action" });
+  } catch (err) {
+    return jsonResponse({ error: err.message });
+  }
+}
+
+/***************************************
+ * CORE LOGIC
+ ***************************************/
+
+function getWeeklySchedule() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sitesSheet = ss.getSheetByName(SHEET_SITES);
+  const logSheet = ss.getSheetByName(SHEET_LOG);
+
+  const sites = getSheetObjects(sitesSheet);
+  const logs = getSheetObjects(logSheet);
+
+  const today = new Date();
+  const weekStart = startOfWeek(today);
+  const weekEnd = endOfWeek(today);
+
+  const schedule = [];
+
+  sites.forEach(site => {
+    // Robust Active check
+    if (!site.Active || site.Active.toString().toLowerCase() !== "true") return;
+
+    // Get logs for this site
+    const siteLogs = logs
+      .filter(l => l["Site ID"] == site["Site ID"])
+      .sort((a, b) => new Date(b["Pickup date"]) - new Date(a["Pickup date"]));
+
+    let lastPickup = null;
+    if (siteLogs.length > 0) {
+      const d = new Date(siteLogs[0]["Pickup date"]);
+      if (!isNaN(d)) lastPickup = d;
+    }
+
+    // Calculate next due
+    let nextDue;
+    try {
+      if (lastPickup) {
+        nextDue = calculateNextDue(lastPickup, site["Pickup frequency"]);
+      } else {
+        // If never picked up, schedule first pickup today
+        nextDue = today;
+      }
+    } catch (e) {
+      Logger.log("Error calculating nextDue for site " + site["Site name"], e);
+      return;
+    }
+
+    // Include site if due this week
+    if (nextDue >= weekStart && nextDue <= weekEnd) {
+      schedule.push({
+        siteId: site["Site ID"],
+        siteName: site["Site name"] || "",
+        address: site["Address"] || "",
+        frequency: site["Pickup frequency"] || ""
+      });
+    }
+  });
+
+  Logger.log("Weekly Schedule:", schedule);
+  return schedule;
+}
+
+
+function submitPickupData(rows) {
+  const sheet = SpreadsheetApp
+    .openById(SPREADSHEET_ID)
+    .getSheetByName(SHEET_LOG);
+
+  rows.forEach(row => {
+    if (!row.receptacle) return;
+
+    sheet.appendRow([
+      new Date(),
+      new Date(),
+      row.siteId || "",
+      row.siteName,
+      row.receptacle,
+      Number(row.numberOfBins || 0),
+      Number(row.fillQuantity || 0)
+    ]);
+  });
+}
+
+/***************************************
+ * HELPERS
+ ***************************************/
+
+function calculateNextDue(date, frequency) {
+  const d = new Date(date);
+
+  switch (frequency) {
+    case "Weekly":
+      d.setDate(d.getDate() + 7);
+      break;
+    case "Fortnightly":
+      d.setDate(d.getDate() + 14);
+      break;
+    case "Monthly":
+      d.setMonth(d.getMonth() + 1);
+      break;
+  }
+
+  return d;
+}
+
+function startOfWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay() || 7;
+  d.setDate(d.getDate() - day + 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfWeek(date) {
+  const d = startOfWeek(date);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function getSheetObjects(sheet) {
+  if (!sheet) return [];
+  const [headers, ...rows] = sheet.getDataRange().getValues();
+  return rows.map(r =>
+    headers.reduce((obj, h, i) => {
+      obj[h] = r[i];
+      return obj;
+    }, {})
+  );
+}
+
+function jsonResponse(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
