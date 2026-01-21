@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Kai Ika – Weekly Can Pickup</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,8 +17,6 @@
       --kai-sand: #f4f7f6;
       --kai-grey: #e3e8e6;
       --kai-text: #1e2d2a;
-      --kai-red: #b22f2f;
-      --kai-red-light: #e09a9a;
     }
 
     * { box-sizing: border-box; }
@@ -33,18 +31,18 @@
     header {
       background: white;
       border-bottom: 1px solid var(--kai-grey);
-      padding: 1rem 1.5rem;
+      padding: 1.25rem 1.5rem;
     }
 
     header h1 {
       margin: 0;
-      font-size: 1.5rem;
+      font-size: 1.4rem;
       font-weight: 700;
       color: var(--kai-green);
     }
 
     main {
-      max-width: 960px;
+      max-width: 1100px;
       margin: 0 auto;
       padding: 1.5rem;
     }
@@ -54,7 +52,6 @@
       border-radius: 12px;
       padding: 1.5rem;
       box-shadow: 0 8px 20px rgba(0,0,0,0.04);
-      margin-top: 1rem;
     }
 
     .card-header {
@@ -64,47 +61,26 @@
       margin-bottom: 1rem;
     }
 
-    .card-header h2 {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: var(--kai-green-dark);
-    }
-
     button {
       background: var(--kai-green);
       color: white;
       border: none;
       border-radius: 8px;
-      padding: 0.7rem 1.2rem;
+      padding: 0.6rem 1rem;
       font-size: 0.9rem;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s ease;
-    }
-
-    button:hover:not(:disabled) {
-      background: var(--kai-green-dark);
     }
 
     button:disabled {
-      background: var(--kai-grey);
+      background: #9bbfb6;
       cursor: not-allowed;
-    }
-
-    .maps-btn {
-      background: var(--kai-red);
-      margin-bottom: 1rem;
-    }
-
-    .maps-btn:hover:not(:disabled) {
-      background: var(--kai-red-light);
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 0.75rem;
+      margin-top: 1rem;
     }
 
     thead {
@@ -112,15 +88,15 @@
     }
 
     th, td {
-      padding: 0.65rem 0.9rem;
-      font-size: 0.9rem;
+      padding: 0.65rem;
+      font-size: 0.85rem;
       text-align: left;
     }
 
     th {
       text-transform: uppercase;
-      font-size: 0.8rem;
-      letter-spacing: 0.04em;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
     }
 
     tbody tr {
@@ -129,32 +105,21 @@
 
     select, input[type="number"] {
       width: 100%;
-      padding: 0.5rem;
+      padding: 0.4rem;
       border-radius: 6px;
       border: 1px solid var(--kai-grey);
     }
 
     .muted {
       color: #6b7a77;
-      font-size: 0.87rem;
-    }
-
-    .footer-note {
-      font-size: 0.75rem;
-      margin-top: 0.5rem;
-      color: #7a7a7a;
+      font-size: 0.85rem;
     }
 
     .actions {
-      margin-top: 1rem;
+      margin-top: 1.25rem;
       display: flex;
       justify-content: flex-end;
     }
-
-    .center {
-      text-align: center;
-    }
-
   </style>
 </head>
 
@@ -167,21 +132,13 @@
 <main>
 
   <div class="card">
-
-    <!-- ROUTE BUTTON (hidden until set) -->
-    <div class="center">
-      <a id="mapsLink" target="_blank" style="display:none;">
-        <button class="maps-btn">Open Route in Google Maps</button>
-      </a>
-    </div>
-
     <div class="card-header">
       <h2>This Week’s Pickup Schedule</h2>
       <button id="loadBtn">Load This Week</button>
     </div>
 
     <p class="muted">
-      Schedule calculated based on pickup frequency and last pickup log.
+      Automatically calculated based on pickup frequency and last collection.
     </p>
 
     <div style="overflow-x:auto;">
@@ -198,7 +155,7 @@
         </thead>
         <tbody id="tableBody">
           <tr>
-            <td colspan="6" class="muted center">No data loaded.</td>
+            <td colspan="6" class="muted">No data loaded.</td>
           </tr>
         </tbody>
       </table>
@@ -207,9 +164,6 @@
     <div class="actions">
       <button id="submitBtn" disabled>Submit Pickup Data</button>
     </div>
-
-    <p class="footer-note center">Powered by Google Sheets + Apps Script</p>
-
   </div>
 
 </main>
@@ -228,7 +182,6 @@ const API_URL = "https://script.google.com/macros/s/AKfycbzz9ki4zigHY_Lc8BrZ7mxJ
 const loadBtn = document.getElementById("loadBtn");
 const submitBtn = document.getElementById("submitBtn");
 const tableBody = document.getElementById("tableBody");
-const mapsLink = document.getElementById("mapsLink");
 
 /* ============================
    LOAD SCHEDULE
@@ -236,33 +189,24 @@ const mapsLink = document.getElementById("mapsLink");
 
 loadBtn.addEventListener("click", async () => {
   loadBtn.disabled = true;
-  tableBody.innerHTML = `<tr><td colspan="6" class="center">Loading…</td></tr>`;
-  submitBtn.disabled = true;
-  mapsLink.style.display = "none";
+  tableBody.innerHTML = `<tr><td colspan="6">Loading…</td></tr>`;
 
   try {
     const res = await fetch(`${API_URL}?action=getWeeklySchedule`);
     const data = await res.json();
 
-    // Handle Google Maps route
-    if (data.mapsRoute) {
-      mapsLink.href = data.mapsRoute;
-      mapsLink.style.display = "inline-block";
-    } else {
-      mapsLink.style.display = "none";
-    }
-
-    if (!Array.isArray(data.schedule) || data.schedule.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="6" class="muted center">No pickups due this week.</td></tr>`;
+    if (!Array.isArray(data) || data.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="6" class="muted">No pickups due this week.</td></tr>`;
+      submitBtn.disabled = true;
       return;
     }
 
-    renderRows(data.schedule);
+    renderRows(data);
     submitBtn.disabled = false;
 
   } catch (err) {
+    tableBody.innerHTML = `<tr><td colspan="6">Error loading data</td></tr>`;
     console.error(err);
-    tableBody.innerHTML = `<tr><td colspan="6" class="muted center">Error loading schedule.</td></tr>`;
   } finally {
     loadBtn.disabled = false;
   }
@@ -331,8 +275,8 @@ submitBtn.addEventListener("click", async () => {
 
     alert("Pickup data submitted successfully.");
   } catch (err) {
-    console.error(err);
     alert("Submission failed.");
+    console.error(err);
   } finally {
     submitBtn.disabled = false;
   }
